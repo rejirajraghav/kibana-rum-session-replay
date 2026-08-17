@@ -1,0 +1,7 @@
+kibana-src/
+node_modules/
+.node-bin
+plugin-src/target/
+plugin-src/build/
+*.tsbuildinfo
+.DS_Store

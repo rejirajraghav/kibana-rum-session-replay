@@ -1,0 +1,13 @@
+{
+  "name": "demo-catalog-service",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node --import @elastic/opentelemetry-node server.js"
+  },
+  "dependencies": {
+    "@elastic/opentelemetry-node": "^1.0.0",
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  }
+}

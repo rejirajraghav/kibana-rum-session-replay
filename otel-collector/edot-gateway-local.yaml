@@ -1,0 +1,93 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4320
+        cors:
+          allowed_origins:
+            - "*"
+          allowed_headers:
+            - "*"
+
+connectors:
+  elasticapm: {}
+
+  routing/logs:
+    default_pipelines: [logs/app]
+    error_mode: ignore
+    table:
+      - context: log
+        statement: route() where instrumentation_scope.name == "elastic-rrweb"
+        pipelines: [logs/replay]
+
+processors:
+  batch:
+    send_batch_size: 1000
+    timeout: 1s
+    send_batch_max_size: 1500
+
+  batch/metrics:
+    send_batch_max_size: 0
+    timeout: 1s
+
+  elasticapm: {}
+
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 512
+
+exporters:
+  elasticsearch/otel:
+    endpoints:
+      - http://elasticsearch:9200
+    mapping:
+      mode: otel
+    sending_queue:
+      enabled: true
+
+  elasticsearch/replay:
+    endpoints:
+      - http://elasticsearch:9200
+    logs_index: logs-rum.replay-default
+    mapping:
+      mode: otel
+    sending_queue:
+      enabled: true
+
+  debug:
+    verbosity: normal
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, elasticapm]
+      exporters: [elasticapm, elasticsearch/otel]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch/metrics]
+      exporters: [elasticsearch/otel]
+
+    metrics/aggregated-otel-metrics:
+      receivers: [elasticapm]
+      processors: []
+      exporters: [elasticsearch/otel]
+
+    logs/in:
+      receivers: [otlp]
+      exporters: [routing/logs]
+
+    logs/replay:
+      receivers: [routing/logs]
+      processors: [memory_limiter, batch]
+      exporters: [elasticsearch/replay]
+
+    logs/app:
+      receivers: [routing/logs]
+      processors: [memory_limiter, batch]
+      exporters: [elasticapm, elasticsearch/otel]
+
+  telemetry:
+    logs:
+      level: info

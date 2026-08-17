@@ -1,0 +1,144 @@
+services:
+
+  # ── Elasticsearch (local, no auth) ──────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.ml.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - cluster.name=local-dev
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks: [demo-net]
+
+  # ── EDOT Collector (local-only mode) ────────────────────────────────────────
+  otel-collector:
+    build:
+      context: ./otel-collector
+      dockerfile: Dockerfile
+    ports:
+      - "4321:4320"
+    networks: [demo-net]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Catalog Service ──────────────────────────────────────────────────────────
+  catalog-service:
+    build:
+      context: ./backend-catalog
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3001"
+      OTEL_SERVICE_NAME: catalog-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4320
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: delta
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=demo,service.version=1.0.0
+    ports:
+      - "3001:3001"
+    networks: [demo-net]
+    depends_on: [otel-collector]
+    restart: unless-stopped
+
+  # ── Orders Service ───────────────────────────────────────────────────────────
+  orders-service:
+    build:
+      context: ./backend-orders
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3002"
+      OTEL_SERVICE_NAME: orders-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4320
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: delta
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=demo,service.version=1.0.0
+      CATALOG_URL: http://catalog-service:3001
+    ports:
+      - "3002:3002"
+    networks: [demo-net]
+    depends_on: [otel-collector, catalog-service]
+    restart: unless-stopped
+
+  # ── Frontend (ElasticShop UI) ────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3000"
+      CATALOG_URL: http://catalog-service:3001
+      ORDERS_URL: http://orders-service:3002
+      COLLECTOR_URL: http://otel-collector:4320
+      KIBANA_URL: ""
+    ports:
+      - "3000:3000"
+    networks: [demo-net]
+    depends_on: [catalog-service, orders-service]
+    restart: unless-stopped
+
+  # ── Replay Player ────────────────────────────────────────────────────────────
+  player:
+    build:
+      context: ./player
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3003"
+      ES_URL: http://elasticsearch:9200
+    ports:
+      - "3003:3003"
+    networks: [demo-net]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Kibana with pre-built external plugin ────────────────────────────────────
+  # Run ./build-plugin.sh once before starting for the first time.
+  # The plugin is built by Kibana's own @kbn/optimizer (plugin-helpers),
+  # which produces the correct rumSessionReplay.plugin.js bundle format.
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.5.0
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_HOST=0.0.0.0
+      - XPACK_SECURITY_ENABLED=false
+      - XPACK_FLEET_ENABLED=false
+      - TELEMETRY_ENABLED=false
+      - LOGGING_ROOT_LEVEL=warn
+    ports:
+      - "5601:5601"
+    volumes:
+      # Mount the plugin-helpers build output — contains rumSessionReplay.plugin.js
+      # built by @kbn/optimizer with the correct __kbnBundles__.define() registration.
+      - ./kibana-src/plugins/rum-session-replay/build/kibana/rumSessionReplay:/usr/share/kibana/plugins/rumSessionReplay:ro
+    networks: [demo-net]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  esdata:
+    driver: local
+
+networks:
+  demo-net:
+    driver: bridge

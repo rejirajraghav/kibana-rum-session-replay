@@ -1,0 +1,13 @@
+{
+  "id": "rumSessionReplay",
+  "version": "1.0.0",
+  "kibanaVersion": "kibana",
+  "owner": {
+    "name": "Elastic Field Engineering"
+  },
+  "server": true,
+  "ui": true,
+  "requiredPlugins": ["navigation"],
+  "optionalPlugins": [],
+  "description": "Session viewing and replay for EDOT Browser RUM SDK"
+}

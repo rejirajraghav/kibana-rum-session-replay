@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ElasticShop — EDOT RUM Demo</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">⚡ ElasticShop</div>
+    <div class="nav-links">
+      <a href="/" data-route="home">Home</a>
+      <a href="/products" data-route="products">Products</a>
+      <a href="/cart" data-route="cart">Cart <span id="cart-count" class="cart-badge">0</span></a>
+      <a href="/orders" data-route="orders">Orders</a>
+      <a href="/lab" data-route="lab" class="nav-lab">🔬 Test Lab</a>
+    </div>
+    <div class="nav-right">
+      <div class="nav-session-pill">
+        <span class="nav-session-dot"></span>
+        <span id="nav-session-badge" class="nav-session-badge">—</span>
+      </div>
+      <div id="nav-user">
+        <button id="btn-login" class="btn btn-sm btn-outline">Login</button>
+      </div>
+    </div>
+  </nav>
+
+  <main id="app"></main>
+
+  <!-- Floating RUM Panel -->
+  <div class="rum-panel" id="rum-panel">
+    <div class="rum-panel-header" id="rum-panel-toggle">
+      <span>🔬 RUM Panel</span>
+      <span id="rum-panel-arrow">▶</span>
+    </div>
+    <div class="rum-panel-body" id="rum-panel-body">
+      <div class="rum-tabs">
+        <button class="rum-tab active" onclick="switchRumTab('errors', this)">Errors</button>
+        <button class="rum-tab" onclick="switchRumTab('network', this)">Network</button>
+        <button class="rum-tab" onclick="switchRumTab('user', this)">User</button>
+        <button class="rum-tab" onclick="switchRumTab('nav', this)">Nav</button>
+        <button class="rum-tab" onclick="switchRumTab('session', this)">Session</button>
+      </div>
+
+      <div id="rum-tab-errors" class="rum-tab-content active">
+        <button class="rum-btn rum-btn-error" onclick="triggerJsError()">💥 JS Error</button>
+        <button class="rum-btn rum-btn-error" onclick="triggerUnhandledRejection()">⚠️ Promise Rejection</button>
+        <button class="rum-btn rum-btn-error" onclick="triggerConsoleError()">🔴 console.error</button>
+        <button class="rum-btn rum-btn-warn" onclick="triggerConsoleWarn()">🟡 console.warn</button>
+        <button class="rum-btn rum-btn-error" onclick="triggerFailedCheckout()">💳 Failed Checkout</button>
+      </div>
+
+      <div id="rum-tab-network" class="rum-tab-content">
+        <button class="rum-btn rum-btn-primary" onclick="triggerSlowRequest()">🐌 Slow API (3s)</button>
+        <button class="rum-btn rum-btn-error" onclick="triggerNetworkError()">❌ Network Error</button>
+        <button class="rum-btn rum-btn-primary" onclick="triggerXHR()">📡 XHR Request</button>
+        <button class="rum-btn rum-btn-primary" onclick="triggerParallelRequests()">⚡ Parallel Fetch ×3</button>
+      </div>
+
+      <div id="rum-tab-user" class="rum-tab-content">
+        <button class="rum-btn rum-btn-success" onclick="triggerSetUser()">👤 Set User (PII)</button>
+        <button class="rum-btn rum-btn-warn" onclick="triggerClearUser()">🚫 Clear User</button>
+        <button class="rum-btn rum-btn-primary" onclick="triggerCustomAction()">🎯 Custom Action</button>
+        <button class="rum-btn rum-btn-primary" onclick="triggerAddBreadcrumb()">🍞 Add Breadcrumb</button>
+      </div>
+
+      <div id="rum-tab-nav" class="rum-tab-content">
+        <button class="rum-btn rum-btn-primary" onclick="navigate('/products')">→ Products</button>
+        <button class="rum-btn rum-btn-primary" onclick="navigate('/lab')">→ Test Lab</button>
+        <button class="rum-btn rum-btn-primary" onclick="navigate('/cart')">→ Cart</button>
+        <button class="rum-btn rum-btn-primary" onclick="triggerHashChange()">⚓ Hash Change</button>
+      </div>
+
+      <div id="rum-tab-session" class="rum-tab-content">
+        <div id="rum-session-info" class="rum-session-info">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="rum-toast" class="rum-toast hidden"></div>
+
+  <script src="/elastic-otel-browser-rum.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
