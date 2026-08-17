@@ -70,12 +70,47 @@ ok "Docker is running"
 
 # ── 2. Plugin build check ──────────────────────────────────────────────────────
 BUILD_OUT="$SCRIPT_DIR/kibana-src/plugins/rum-session-replay/build/kibana/rumSessionReplay"
-if [ ! -f "$BUILD_OUT/target/public/rumSessionReplay.plugin.js" ]; then
-  echo ""
-  echo -e "${YELLOW}${BOLD}Plugin not built yet — running build-plugin.sh first.${RESET}"
-  echo -e "${DIM}This is a one-time step that takes 25–45 minutes.${RESET}"
-  echo ""
-  ./build-plugin.sh
+BUILD_LOG="/tmp/build-plugin.log"
+PID_FILE="$SCRIPT_DIR/.build.pid"
+
+if [ ! -f "$BUILD_OUT/target/public/rumSessionReplay.plugin.js" ] || [ ! -f "$BUILD_OUT/server/index.js" ]; then
+
+  # Check if a build is already running in the background
+  if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    BUILD_PID=$(cat "$PID_FILE")
+    echo ""
+    echo -e "${YELLOW}${BOLD}Build already in progress (PID $BUILD_PID) — streaming output:${RESET}"
+    echo -e "${DIM}(Build takes 25–45 min on first run. Ctrl+C exits the watcher but keeps the build running.)${RESET}"
+    echo ""
+
+    # Tail the log file live until the build process exits
+    tail -f "$BUILD_LOG" &
+    TAIL_PID=$!
+
+    while kill -0 "$BUILD_PID" 2>/dev/null; do
+      sleep 3
+    done
+
+    # Give tail a moment to flush the last lines
+    sleep 2
+    kill "$TAIL_PID" 2>/dev/null || true
+    wait "$TAIL_PID" 2>/dev/null || true
+
+    # Check if build succeeded
+    if [ ! -f "$BUILD_OUT/target/public/rumSessionReplay.plugin.js" ]; then
+      fail "Build finished but plugin bundle is missing. Check $BUILD_LOG"
+      exit 1
+    fi
+
+  else
+    # No build running — start one now, output streams directly to terminal
+    echo ""
+    echo -e "${YELLOW}${BOLD}Plugin not built yet — running build-plugin.sh now.${RESET}"
+    echo -e "${DIM}One-time step, takes 25–45 minutes. Everything streams here.${RESET}"
+    echo ""
+    ./build-plugin.sh
+  fi
+
 fi
 ok "Plugin bundle ready"
 
